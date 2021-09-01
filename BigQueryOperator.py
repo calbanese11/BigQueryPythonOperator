@@ -5,7 +5,6 @@ import os
 import pandas as pd
 from typing import List, Callable
 import tempfile
-# Test!
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/codyalbanese/Projects/BigQueryOperator/google-application-credentials.json"
 
