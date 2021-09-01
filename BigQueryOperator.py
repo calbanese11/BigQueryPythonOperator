@@ -1,12 +1,11 @@
 from google.cloud import bigquery
+from google.cloud import storage
 from abc import ABC, abstractmethod
 import sys
 import os
 import pandas as pd
-from typing import List, Callable
+from typing import List, Callable, Optional
 import tempfile
-
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/Users/codyalbanese/Projects/BigQueryOperator/google-application-credentials.json"
 
 
 class Error(Exception):
@@ -44,27 +43,31 @@ class BigQueryOperator:
 
     """
     Operator used to easily interact with bigquery
+
+    Requires that the GOOGLE_APPLICATION_CREDENTIALS be set as an environment variable.
+    Or the user must provide a path to the json key.
     """
 
     def _env_check(self):
         """
-        Check to see if the required GOOGLE_APPLICATION_CREDENTIALS has been set
+        Check to see if the required GOOGLE_APPLICATION_CREDENTIALS have been set
         """
-
         try:
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.GOOGLE_APPLICATION_CREDENTIALS
             os.environ[self.required_env_var] # Throws error if required environment variable is not set
-            return bigquery.Client()
-        except KeyError as k:
+            return bigquery.Client(), storage.Client()
+        except Exception as e:
             print("You have not set the required GOOGLE_APPLICATION_CREDENTIALS environment variable.\n" +
                   "To set this use the commented out line of code below the import statement.\nOr run this code in your "
                   "shell environment: export GOOGLE_APPLICATION_CREDENTIALS=<path to json key>")
             sys.exit("GOOGLE_APPLICATION_CREDENTIALS - Not Found")
 
-    def __init__(self):
+    def __init__(self, google_application_credentials_path: str = None):
         self,
         self.name = "BIGQUERY_OPERATOR"
         self.required_env_var = "GOOGLE_APPLICATION_CREDENTIALS"
-        self.client = self._env_check()
+        self.GOOGLE_APPLICATION_CREDENTIALS = google_application_credentials_path
+        self.client_gbq, self.client_gcp = self._env_check()
 
     # Use abstract method for output path if gcs is desired
 
@@ -111,14 +114,16 @@ class BigQueryOperator:
                           data_return_type: str = None,
                           params: dict = None,
                           output_location: str = None,
-                          gcs_output_location: bool = False,
-                          create_bq_storage_client: bool = True,
-                          silent: bool = False):
+                          gcs_output_location: Optional[bool] = False,
+                          gcs_bucket: Optional[str] = None,
+                          gcs_destination_blob_name: Optional[str] = None,
+                          create_bq_storage_client: Optional[bool] = True,
+                          silent: Optional[bool] = False):
 
         if sql is None:
             raise SqlNotSet("SQL", "A SQL query must be defined", self.bigquery_download.__name__)
 
-        query_job = self.client.query(sql)
+        query_job = self.client_gbq.query(sql)
 
         data = self._query_job(query_job, create_bq_storage_client=create_bq_storage_client, silent=silent)
 
@@ -128,7 +133,7 @@ class BigQueryOperator:
 
     def bigquery_sql_operator(self,
                               sql: str = None,
-                              silent: bool = False):
+                              silent: Optional[bool] = False):
 
         """
         Useful to call stored procedures/routines
@@ -137,21 +142,21 @@ class BigQueryOperator:
         if sql is None:
             raise SqlNotSet("SQL", "A SQL query must be defined", self.bigquery_sql_operator.__name__)
 
-        query_job = self.client.query(sql)
+        query_job = self.client_gbq.query(sql)
 
         self._query_job(query_job, silent=silent)
 
         return
 
     def bigquery_upload_stream(self,
-                                   table_id=None,
-                                   rows=None):
+                                table_id=None,
+                                rows=None):
         """
         New rows must be json formatted
         """
 
         rows_to_insert = [rows]
-        errors = self.client.insert_rows_json(table_id, rows_to_insert)  # Make an API request.
+        errors = self.client_gbq.insert_rows_json(table_id, rows_to_insert)  # Make an API request.
         if errors == []:
             pass
             # print("New rows have been added.")
