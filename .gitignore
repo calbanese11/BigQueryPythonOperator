@@ -1,0 +1,9 @@
+# Default ignored files
+/shelf/
+/.idea/codeStyles/*
+/.idea/*
+/bash_util.sh
+google*
+/testing_operator.py
+/outputs/*
+/outputs/
