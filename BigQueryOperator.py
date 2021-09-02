@@ -71,6 +71,7 @@ class BigQueryOperator:
 
     # Use abstract method for output path if gcs is desired
 
+    #THESE ARE THE ABSTRACT METHODS!! NOT THE OUTPUT LOCATION
     def _return_parquet(self, data):
         pass
 
@@ -82,7 +83,9 @@ class BigQueryOperator:
         return
 
     def _return_text(self, output_path: str, data):
-        pass
+        with open(output_path, "w") as file:
+            file.write(data)
+        return
 
     def _query_job(self, job_instance, create_bq_storage_client: bool = True, silent: bool = False):
 
@@ -112,7 +115,7 @@ class BigQueryOperator:
     def bigquery_download(self,
                           sql: str = None,
                           data_return_type: str = None,
-                          params: dict = None,
+                          custom_output_params: Optional[dict] = None,
                           output_location: str = None,
                           gcs_output_location: Optional[bool] = False,
                           gcs_bucket: Optional[str] = None,
@@ -127,7 +130,7 @@ class BigQueryOperator:
 
         data = self._query_job(query_job, create_bq_storage_client=create_bq_storage_client, silent=silent)
 
-        self._return_csv(data, "/Users/codyalbanese/Projects/BigQueryOperator/outputs/test.csv")
+        self._return_text(data=data, output_path="/Users/codyalbanese/Projects/BigQueryOperator/outputs/test.txt")
 
         return data
 
