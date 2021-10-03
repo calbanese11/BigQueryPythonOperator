@@ -13,7 +13,11 @@ def _upload_local_gcs(bucket_name: str = None, destination_blob_name: str = None
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
 
-    with tempfile.NamedTemporaryFile(suffix=suffix, mode="w") as ntf:
+    mode = "w"
+    if suffix in ('.parquet', '.avro'):
+        mode = "wb"
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, mode=mode) as ntf:
         ntf.write(data)
         blob.upload_from_filename(ntf.name)
 
@@ -54,11 +58,11 @@ class ReturnParquet(OutputLocation):
         if params is not None:
             _upload_local_gcs(bucket_name=bucket_name, destination_blob_name=destination_blob_name,
                               data=data.to_parquet(**params),
-                              suffix=".csv")
+                              suffix=".parquet")
         else:
             _upload_local_gcs(bucket_name=bucket_name, destination_blob_name=destination_blob_name,
                               data=data.to_parquet(),
-                              suffix=".csv")
+                              suffix=".parquet")
 
 
 class ReturnCsv(OutputLocation):
@@ -133,7 +137,7 @@ def configure_output(location: str = "local", return_type: str = "csv"):
 
     return_format_options = {"csv": ReturnCsv,
                              "parquet": ReturnParquet,
-                             "text": ReturnText}
+                             "txt": ReturnText}
 
     instantiated_return_class = return_format_options[return_type]()
 

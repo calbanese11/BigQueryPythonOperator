@@ -6,29 +6,7 @@ import os
 # import pandas as pd
 from typing import List, Callable, Optional
 from .outputlocations import *
-
-
-class Error(Exception):
-    """Base class for exceptions in this module."""
-    pass
-
-
-class SqlNotSet(Error):
-    """Exception raised for errors in the input.
-
-    Attributes:
-        expression -- input expression in which the error occurred
-        message -- explanation of the error
-    """
-
-    def __init__(self, expression, message, func_name=False):
-        self.expression = expression
-        self.message = message
-        self.func_name = func_name
-
-        if self.func_name is not False:
-            print(self.func_name + " - Needs a query.")
-
+from .exceptions import *
 
 class BigQueryOperator:
     """
@@ -108,7 +86,7 @@ class BigQueryOperator:
         """
 
         if sql is None:
-            raise SqlNotSet("SQL", "A SQL query must be defined", self.bigquery_download.__name__)
+            raise SqlNotSet("SQL", "A SQL query must be defined", self.bigquery_download_local.__name__)
 
         query_job = self.client_gbq.query(sql)
 
@@ -147,14 +125,14 @@ class BigQueryOperator:
         """
 
         if sql is None:
-            raise SqlNotSet("SQL", "A SQL query must be defined", self.bigquery_download.__name__)
+            raise SqlNotSet("SQL", "A SQL query must be defined", self.bigquery_upload_gcs.__name__)
 
         query_job = self.client_gbq.query(sql)
 
         data = self._query_job(job_instance=query_job, create_bq_storage_client=create_bq_storage_client, silent=silent)
 
         write_output_func = configure_output(location="gcs", return_type=data_return_type)
-        write_output_func(data=data, bucket_name=gcs_bucket_name, destination_blob_name=gcs_destination_blob_name)
+        write_output_func(data=data, bucket_name=gcs_bucket_name, destination_blob_name=gcs_destination_blob_name, params=custom_output_params)
         return
 
     def bigquery_extract_gcs(self,
@@ -184,7 +162,7 @@ class BigQueryOperator:
                        "PARQET": ".parquet"}
 
         if sql is None:
-            raise SqlNotSet("SQL", "A SQL query must be defined", self.bigquery_download.__name__)
+            raise SqlNotSet("SQL", "A SQL query must be defined", self.bigquery_extract_gcs.__name__)
 
         bq_export_to_gcs = f"""
                         EXPORT DATA OPTIONS(
