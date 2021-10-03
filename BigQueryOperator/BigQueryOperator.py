@@ -3,9 +3,9 @@ from google.cloud import storage
 from abc import ABC, abstractmethod
 import sys
 import os
-import pandas as pd
+# import pandas as pd
 from typing import List, Callable, Optional
-import tempfile
+from .outputlocations import *
 
 
 class Error(Exception):
@@ -28,99 +28,6 @@ class SqlNotSet(Error):
 
         if self.func_name is not False:
             print(self.func_name + " - Needs a query.")
-
-
-def _upload_local_gcs(bucket_name: str = None, destination_blob_name: str = None, data=None, suffix: str = None):
-    # Create a named temporary file to be used in upload to GCS. Temporary file will be immediately deleted after use.
-    # This may take awhile for very large files. Use with caution.
-    # print(data)
-
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(destination_blob_name)
-
-    with tempfile.NamedTemporaryFile(suffix=suffix, mode="w") as ntf:
-        ntf.write(data)
-        blob.upload_from_filename(ntf.name)
-
-    print(
-        "{} uploaded to gcs.".format(destination_blob_name
-                                     )
-    )
-    return
-
-
-class OutputLocation(ABC):
-
-    @abstractmethod
-    def write_output_local(self, data, output_location: str, params: Optional[dict] = None, *args, **kwargs):
-        pass
-
-    @abstractmethod
-    def write_output_local_gcs(self, params: Optional[dict] = None, bucket_name: str = None,
-                               destination_blob_name: str = None,
-                               data=None, *args, **kwargs):
-        pass
-
-
-class ReturnParquet(OutputLocation):
-    def write_output_local(self, data, output_location: str, params: Optional[dict] = None, *args, **kwargs):
-        pass
-
-    def write_output_local_gcs(self, params: Optional[dict] = None, bucket_name: str = None,
-                               destination_blob_name: str = None,
-                               data=None, *args, **kwargs):
-        pass
-
-
-class ReturnAvro(OutputLocation):
-    def write_output_local(self, data, output_location: str, params: Optional[dict] = None, *args, **kwargs):
-        pass
-
-    def write_output_local_gcs(self, params: Optional[dict] = None, bucket_name: str = None,
-                               destination_blob_name: str = None,
-                               data=None, *args, **kwargs):
-        pass
-
-
-class ReturnCsv(OutputLocation):
-    def write_output_local(self, data, output_location: str, params: Optional[dict] = None, *args, **kwargs):
-        pass
-
-    def write_output_local_gcs(self, params: Optional[dict] = None, bucket_name: str = None,
-                               destination_blob_name: str = None,
-                               data=None, *args, **kwargs):
-        _upload_local_gcs(bucket_name=bucket_name, destination_blob_name=destination_blob_name, data=data.to_csv(),
-                          suffix=".csv")
-        pass
-
-
-class ReturnText(OutputLocation):
-    def write_output_local(self, data, output_location: str, params: Optional[dict] = None, *args, **kwargs):
-        with open(output_location, "w") as file:
-            file.write(str(data))
-        pass
-
-    def write_output_local_gcs(self, params: Optional[dict] = None, bucket_name: str = None,
-                               destination_blob_name: str = None,
-                               data=None, *args, **kwargs):
-        _upload_local_gcs(bucket_name=bucket_name, destination_blob_name=destination_blob_name, data=data.to_string(),
-                          suffix=".txt")
-        pass
-
-
-def _configure_output(location: str = "local", return_type: str = "csv"):
-    return_format_options = {"csv": ReturnCsv,
-                             "parquet": ReturnParquet,
-                             "text": ReturnText,
-                             "avro": ReturnAvro}
-
-    instantiated_return_class = return_format_options[return_type]()
-
-    return_location_options = {"local": instantiated_return_class.write_output_local,
-                               "gcs": instantiated_return_class.write_output_gcs}
-
-    return return_location_options[location]
 
 
 class BigQueryOperator:
@@ -184,7 +91,7 @@ class BigQueryOperator:
                                 sql: str = None,
                                 data_return_type: str = "text",
                                 custom_output_params: Optional[dict] = None,
-                                local_output_path: str = "./outputs/test.txt",
+                                output_path: str = "./outputs/test.txt",
                                 create_bq_storage_client: Optional[bool] = True,
                                 silent: Optional[bool] = False):
 
@@ -194,7 +101,7 @@ class BigQueryOperator:
         :param sql:
         :param data_return_type:
         :param custom_output_params:
-        :param local_output_path:
+        :param output_path:
         :param create_bq_storage_client:
         :param silent:
         :return: None
@@ -207,9 +114,9 @@ class BigQueryOperator:
 
         data = self._query_job(job_instance=query_job, create_bq_storage_client=create_bq_storage_client, silent=silent)
 
-        write_output_func = _configure_output(location="local", return_type=data_return_type)
+        write_output_func = configure_output(location="local", return_type=data_return_type)
 
-        write_output_func(data=data, output_location=local_output_path)
+        write_output_func(data=data, output_location=output_path, params=custom_output_params)
 
         return
 
@@ -246,7 +153,7 @@ class BigQueryOperator:
 
         data = self._query_job(job_instance=query_job, create_bq_storage_client=create_bq_storage_client, silent=silent)
 
-        write_output_func = _configure_output(location="gcs", return_type=data_return_type)
+        write_output_func = configure_output(location="gcs", return_type=data_return_type)
         write_output_func(data=data, bucket_name=gcs_bucket_name, destination_blob_name=gcs_destination_blob_name)
         return
 
@@ -256,7 +163,6 @@ class BigQueryOperator:
                              custom_output_params: Optional[dict] = None,
                              gcs_bucket_name: Optional[str] = None,
                              gcs_destination_blob_name: Optional[str] = None,
-                             create_bq_storage_client: Optional[bool] = True,
                              silent: Optional[bool] = False):
         """
         Function used to extract data directly from GBQ to GCS. It's recommended to use this function if your data is
