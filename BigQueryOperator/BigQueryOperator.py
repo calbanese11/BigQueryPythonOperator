@@ -199,8 +199,6 @@ class BigQueryOperator:
         if data_return_type != "csv":
             data_return_type = "other"
 
-        print(query_templates[data_return_type])
-
         query_job = self.client_gbq.query(query_templates[data_return_type])
 
         data = self._query_job(job_instance=query_job, silent=silent)
