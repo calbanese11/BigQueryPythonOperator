@@ -1,12 +1,11 @@
 from google.cloud import bigquery
-from google.cloud import storage
-from abc import ABC, abstractmethod
 import sys
 import os
 # import pandas as pd
 from typing import List, Callable, Optional
-from .outputlocations import *
-from .exceptions import *
+from .outputlocations import configure_output
+from .exceptions import SqlNotSet
+
 
 class BigQueryOperator:
     """
@@ -47,7 +46,6 @@ class BigQueryOperator:
                                                                                      job_instance.created,
                                                                                      job_instance.started,
                                                                                      job_instance.state))
-            data = None
             data = (job_instance
                 .result()
                 .to_dataframe(
@@ -58,12 +56,17 @@ class BigQueryOperator:
             )
             )
 
+            print(type(data))
         if silent is False:
             print("Query job: {}".format(job_instance.state))
             print("This query will bill {} bytes.".format(job_instance.total_bytes_billed))
             print("This query will process {} bytes.".format(job_instance.total_bytes_processed))
 
-        return data
+        try:
+            return data
+        except UnboundLocalError:
+            "Error is thrown if the operation does not return data. This is expected in many cases."
+            return
 
     def bigquery_download_local(self,
                                 sql: str = None,
@@ -132,13 +135,17 @@ class BigQueryOperator:
         data = self._query_job(job_instance=query_job, create_bq_storage_client=create_bq_storage_client, silent=silent)
 
         write_output_func = configure_output(location="gcs", return_type=data_return_type)
-        write_output_func(data=data, bucket_name=gcs_bucket_name, destination_blob_name=gcs_destination_blob_name, params=custom_output_params)
+        write_output_func(data=data, bucket_name=gcs_bucket_name, destination_blob_name=gcs_destination_blob_name,
+                          params=custom_output_params)
         return
 
     def bigquery_extract_gcs(self,
                              sql: str = None,
-                             data_return_type: str = "TXT",
-                             custom_output_params: Optional[dict] = None,
+                             data_return_type: str = "csv",
+                             overwrite=True,
+                             header: Optional[bool] = False,
+                             compression: Optional[str] = None,
+                             field_delimiter: Optional[str] = ",",
                              gcs_bucket_name: Optional[str] = None,
                              gcs_destination_blob_name: Optional[str] = None,
                              silent: Optional[bool] = False):
@@ -146,35 +153,57 @@ class BigQueryOperator:
         Function used to extract data directly from GBQ to GCS. It's recommended to use this function if your data is
         smaller than 1GB. This function will append an EXTRACT statement right before your provided SQL query.
 
+        :param header:
+        :param compression:
+        :param field_delimiter:
         :param sql:
         :param data_return_type:
-        :param custom_output_params:
         :param gcs_bucket_name:
         :param gcs_destination_blob_name:
-        :param create_bq_storage_client:
         :param silent:
         :return:
         """
 
-        suffix_dict = {"CSV": ".csv",
-                       "TXT": ".txt",
-                       "AVRO": ".avro",
-                       "PARQET": ".parquet"}
+        suffix_dict = {"csv": ".csv",
+                       "json": ".json",
+                       "avro": ".avro",
+                       "parquet": ".parquet"}
 
         if sql is None:
             raise SqlNotSet("SQL", "A SQL query must be defined", self.bigquery_extract_gcs.__name__)
 
-        bq_export_to_gcs = f"""
-                        EXPORT DATA OPTIONS(
-                          uri='gs:/{gcs_bucket_name}/{gcs_destination_blob_name}-*.{suffix_dict[data_return_type]}',
+        overwrite = str(overwrite).lower()
+        data_return_type = str(data_return_type).lower()
+        gcs_destination_blob_name_drop_suffix = gcs_destination_blob_name.split(".")[0]
+
+        query_templates = {"csv": f"""
+                          EXPORT DATA OPTIONS(
+                          uri='gs://{gcs_bucket_name}/{gcs_destination_blob_name_drop_suffix}-*{suffix_dict[data_return_type]}',
                           format={data_return_type},
-                          overwrite=true,
-                          header=false,
-                          field_delimiter=',') AS
+                          overwrite={overwrite},
+                          header={header},
+                          field_delimiter="{field_delimiter}",
+                          compression={compression}) AS
+                          {sql} """,
+
+                           "other": f"""
+                          EXPORT DATA OPTIONS(
+                          uri='gs://{gcs_bucket_name}/{gcs_destination_blob_name_drop_suffix}-*{suffix_dict[data_return_type]}',
+                          format={data_return_type},
+                          overwrite={overwrite},
+                          compression={compression}) AS
                           {sql}
                         """
+                           }
 
-        query_job = self.client_gbq.query(sql)
+        if data_return_type != "csv":
+            data_return_type = "other"
+
+        print(query_templates[data_return_type])
+
+        query_job = self.client_gbq.query(query_templates[data_return_type])
+
+        data = self._query_job(job_instance=query_job, silent=silent)
 
         return
 
