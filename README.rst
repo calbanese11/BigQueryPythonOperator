@@ -8,19 +8,16 @@ basic python and sql knowledge to operate. This package is intended for data ana
 
    This project is under active development.
 
-Example: Download data from GBQ to your root directory::
+**Example**: Download data from GBQ to your root directory::
 
- .. code-block:: python
-    :linenos:
+ BigQueryOperator = BigQueryOperator(path_to_json_key)
 
-    BigQueryOperator = BigQueryOperator(path_to_json_key)
+ sql = "SELECT *
+        FROM `my_project.my_dataset.my_data`
+        LIMIT 1000"
 
-    sql = "SELECT *
-           FROM `my_project.my_dataset.my_data`
-           LIMIT 1000"
-
-    BigQueryOperator.bigquery_download_local(sql,
-                                     silent=False,
-                                     output_path="my_data.csv",
-                                     data_return_type="csv",
-                                     custom_output_params={"sep":";"})
+ BigQueryOperator.bigquery_download_local(sql,
+                                          silent=False,
+                                          output_path="my_data.csv",
+                                          data_return_type="csv",
+                                          custom_output_params={"sep":";"})
