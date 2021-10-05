@@ -8,7 +8,9 @@ basic python and sql knowledge to operate. This package is intended for data ana
 
    This project is under active development.
 
-**Example**: Download data from GBQ to your root directory::
+**Example**: Download data from GBQ to your root directory:
+
+.. code-block:: python
 
  BigQueryOperator = BigQueryOperator(path_to_json_key)
 
