@@ -117,16 +117,6 @@ class ReturnText(OutputLocation):
                               suffix=".txt")
 
 
-# class ReturnAvro(OutputLocation):
-#     def write_output_local(self, data, output_location: str, params: Optional[dict] = None, *args, **kwargs):
-#         pass
-#
-#     def write_output_local_gcs(self, params: Optional[dict] = None, bucket_name: str = None,
-#                                destination_blob_name: str = None,
-#                                data=None, *args, **kwargs):
-#         pass
-
-
 def configure_output(location: str = "local", return_type: str = "csv"):
     """
     Returns the method needed dependent on the output location.
